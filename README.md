@@ -26,3 +26,4 @@ The script is Network_scanner.py. It takes one or more hosts/subnets as input us
 Note: Run with sudo or as root, because Scapy requires elevated privileges for packet sending.
 Basic syntax
 sudo python3 Network_scanner.py --h <host1> <host2> ...
+
