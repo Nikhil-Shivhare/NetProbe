@@ -1,19 +1,25 @@
 #!/usr/bin/python3
+
 from scapy.all import *
 from prettytable import PrettyTable
 from mac_vendor_lookup import MacLookup
 from argparse import ArgumentParser
 from sys import exit, stderr,argv
+import sys
+
 
 class networkScanner:
     def __init__ (self , hosts):
         for host in hosts:
-            self.host= host 
+            self.host = host
             self.alive = {}
+            self.os_info = {}
             self.create_packet()
             self.send_packet()
             self.get_alive()
             self.print_alive()
+            
+
         
         
         
@@ -22,32 +28,74 @@ class networkScanner:
         layer2= ARP(pdst=self.host)
         packet= layer1/layer2
         self.packet =packet 
+        
     def send_packet(self):
         ans, unasw = srp(self.packet,timeout=1,verbose=False) # verbose tells in very detailed info which is not needed sometimes
         if ans :
             self.ans =ans
         else:
-            print (" No Host is Up")
+            print(" No Host is Up")
             sys.exit(1)
+            
+            
     def get_alive(self):
-        for sent, recevied in self.ans :
-            self.alive[recevied.psrc]=recevied.hwsrc
+        for sent, recevied in self.ans:
+            ip = recevied.psrc
+            mac = recevied.hwsrc
+            self.alive[ip] = mac
+
+            os_name, ttl = self.detect_os_ttl(ip)
+            self.os_info[ip] = f"{os_name} [{ttl}]"
+           
+
+    
+    
+    def detect_os_ttl(self, ip):
+        try:
+            pkt = IP(dst=ip) / ICMP()
+            reply = sr1(pkt, timeout=1, verbose=False)
+
+            if reply is None:
+                return "Unknown", "NA"
+
+            ttl = reply.ttl
+
+            if 60 <= ttl <= 70:
+                return "Linux/Unix/macOS", ttl
+            elif 110 <= ttl <= 130:
+                return "Windows", ttl
+            elif 240 <= ttl <= 255:
+                return "Network Device", ttl
+            else:
+                return "Unknown", ttl
+
+        except:
+            return "Unknown", "NA"
+        
+        
     def print_alive(self):
-        table = PrettyTable(["IP","MAC","VENDOR"])
-        for ip , mac in self.alive.items():
+        table = PrettyTable(["IP", "MAC", "VENDOR", "OS (TTL)"])
+
+        for ip, mac in self.alive.items():
             try:
-                table.add_row([ip,mac,MacLookup().lookup(mac)])
+                vendor = MacLookup().lookup(mac)
             except:
-                table.add_row([ip,mac,"NA"])
-        print(table)
+                vendor = "NA"
+
+            os_data = self.os_info.get(ip, "Unknown")
+            table.add_row([ip, mac, vendor, os_data])
+
+        print(table)    
 
 def get_args():
     parser = ArgumentParser(description="Network scanner")
     parser.add_argument("--h",dest="hosts",nargs="+",help="Hosts to scan")
     arg = parser.parse_args()
+    
     if len(sys.argv)== 1:
         parser.print_help(sys.stderr)
         sys.exit(1)
     return arg.hosts
+
 hosts  = get_args()
 networkScanner(hosts)
