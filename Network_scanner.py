@@ -81,20 +81,19 @@ class networkScanner:
         total = len(self.alive)
 
         # Phase 2: Concurrent OS fingerprinting with progress bar
-        print(f"[*] OS fingerprinting {total} host(s)...")
+        print(f"[*] OS fingerprinting {total} host(s) (TTL + TCP Window)...")
         with ThreadPoolExecutor(max_workers=self.threads) as ex:
-            futures = {ex.submit(self.detect_os_ttl, ip): ip for ip in self.alive}
+            futures = {ex.submit(self.detect_os, ip): ip for ip in self.alive}
             with tqdm(total=total, desc="  OS Detect", unit="host",
                       bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}]",
                       leave=False) as pbar:
                 for future in as_completed(futures):
                     ip = futures[future]
                     try:
-                        os_name, ttl      = future.result()
-                        self.os_info[ip]  = f"{os_name} [{ttl}]"
-                        log.debug(f"OS detect {ip}: {os_name} (TTL={ttl})")
+                        self.os_info[ip] = future.result()
+                        log.debug(f"OS detect {ip}: {self.os_info[ip]}")
                     except Exception as e:
-                        self.os_info[ip] = "Unknown [NA]"
+                        self.os_info[ip] = "Unknown [TTL:NA WIN:NA] (low)"
                         log.warning(f"OS detect failed for {ip}: {e}")
                     pbar.update(1)
 
@@ -115,21 +114,89 @@ class networkScanner:
                             self.port_info[ip] = []
                             log.warning(f"Port scan failed for {ip}: {e}")
 
-    # ─── TTL-based OS Detection ───────────────────────────────────────────────
+    # ─── TTL + TCP Window OS Detection ───────────────────────────────────────
 
-    def detect_os_ttl(self, ip):
+    # Known TCP window-size signatures (SYN-ACK)
+    WIN_LINUX   = {5840, 5720, 14600, 29200, 26883, 64240, 32120}
+    WIN_WINDOWS = {65535, 8192, 64240, 64512, 16384}
+    WIN_MACOS   = {65535, 65160}
+    WIN_NETDEV  = {4128, 8192, 16384, 32768}
+
+    SYN_PROBE_PORT = 80  # port used for TCP window probe
+
+    def detect_os(self, ip):
+        """Combined ICMP-TTL + TCP-Window-Size OS fingerprinting."""
+        ttl      = None
+        win_size = None
+        os_ttl   = "Unknown"
+        os_win   = "Unknown"
+
+        # ── Probe 1: ICMP (TTL) ───────────────────────────────────────────
         try:
             log.debug(f"Sending ICMP to {ip}")
-            reply = sr1(IP(dst=ip) / ICMP(), timeout=1, verbose=False)
-            if reply is None:
-                return "Unknown", "NA"
-            ttl = reply.ttl
-            if   60  <= ttl <= 70:  return "Linux/macOS",  ttl
-            elif 110 <= ttl <= 130: return "Windows",       ttl
-            elif 240 <= ttl <= 255: return "Net Device",    ttl
-            else:                   return "Unknown",        ttl
-        except Exception:
-            return "Unknown", "NA"
+            icmp_reply = sr1(IP(dst=ip) / ICMP(), timeout=1, verbose=False)
+            if icmp_reply:
+                ttl = icmp_reply.ttl
+                if   60  <= ttl <= 70:  os_ttl = "Linux/macOS"
+                elif 110 <= ttl <= 130: os_ttl = "Windows"
+                elif 240 <= ttl <= 255: os_ttl = "Net Device"
+        except Exception as e:
+            log.warning(f"ICMP probe failed for {ip}: {e}")
+
+        # ── Probe 2: TCP SYN → Window Size ────────────────────────────────
+        try:
+            log.debug(f"Sending TCP SYN to {ip}:{self.SYN_PROBE_PORT}")
+            syn_pkt  = IP(dst=ip) / TCP(dport=self.SYN_PROBE_PORT, flags="S")
+            syn_reply = sr1(syn_pkt, timeout=1, verbose=False)
+            if syn_reply and syn_reply.haslayer(TCP) and syn_reply[TCP].flags == 0x12:
+                win_size = syn_reply[TCP].window
+                send(IP(dst=ip) / TCP(dport=self.SYN_PROBE_PORT, flags="R"), verbose=False)
+                log.debug(f"TCP window for {ip}: {win_size}")
+                if   win_size in self.WIN_LINUX:   os_win = "Linux"
+                elif win_size in self.WIN_MACOS:   os_win = "macOS"
+                elif win_size in self.WIN_WINDOWS: os_win = "Windows"
+                elif win_size in self.WIN_NETDEV:  os_win = "Net Device"
+        except Exception as e:
+            log.warning(f"TCP SYN probe failed for {ip}: {e}")
+
+        # ── Combine both signals ──────────────────────────────────────────
+        os_name, confidence = self._combine_os(os_ttl, os_win, ttl, win_size)
+        ttl_str = ttl if ttl is not None else "NA"
+        win_str = win_size if win_size is not None else "NA"
+        detail  = f"{os_name} [TTL:{ttl_str} WIN:{win_str}] ({confidence})"
+        log.debug(f"OS result {ip}: {detail}")
+        return detail
+
+    @staticmethod
+    def _combine_os(os_ttl, os_win, ttl, win_size):
+        """Merge TTL and window-size guesses into one verdict + confidence."""
+        # Neither probe succeeded
+        if os_ttl == "Unknown" and os_win == "Unknown":
+            return "Unknown", "low"
+
+        # Only one probe succeeded
+        if os_win == "Unknown":
+            return os_ttl, "medium"
+        if os_ttl == "Unknown":
+            return os_win, "medium"
+
+        # Both probes agree
+        if os_ttl == os_win:
+            return os_win, "high"
+
+        # TTL says "Linux/macOS" — window size can disambiguate
+        if os_ttl == "Linux/macOS":
+            if os_win in ("Linux", "macOS"):
+                return os_win, "high"
+            # window says something else, trust TTL bucket
+            return os_ttl, "medium"
+
+        # TTL says Net Device — trust TTL (network gear TTL is very reliable)
+        if os_ttl == "Net Device":
+            return "Net Device", "high"
+
+        # Conflicting — prefer TTL (more battle-tested)
+        return os_ttl, "medium"
 
     # ─── TCP SYN Port Scanner ─────────────────────────────────────────────────
 

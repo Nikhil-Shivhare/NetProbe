@@ -1,7 +1,7 @@
 
 # 🔍 NetProbe — Python Network Reconnaissance Tool
 
-NetProbe is a Python-based network reconnaissance tool that performs **ARP-based host discovery**, **TTL-based OS fingerprinting**, and **TCP SYN port scanning** to enumerate live devices on a local network.  
+NetProbe is a Python-based network reconnaissance tool that performs **ARP-based host discovery**, **combined TTL + TCP Window Size OS fingerprinting**, and **TCP SYN port scanning** to enumerate live devices on a local network.  
 This tool is designed for **educational use and permissioned internal security audits** only.
 
 ---
@@ -9,17 +9,19 @@ This tool is designed for **educational use and permissioned internal security a
 ## ✨ Features
 
 - ✅ ARP-based **live host discovery**
-- ✅ **TTL-based OS fingerprinting**
-  - Linux / macOS → TTL ≈ 64
-  - Windows → TTL ≈ 128
+- ✅ **Combined TTL + TCP Window Size OS fingerprinting**
+  - Dual-probe: ICMP (TTL) + TCP SYN (Window Size)
+  - Distinguishes **Linux** vs **macOS** (both TTL ≈ 64, different window sizes)
+  - Windows → TTL ≈ 128, Window ≈ 65535/8192
   - Network Devices → TTL ≈ 255
+  - Confidence levels: **high** (both probes agree) · **medium** (one probe) · **low** (neither)
 - ✅ **TCP SYN port scanner** – detects 101 common services (SSH, HTTP, RDP, MySQL, Redis …)
 - ✅ **Multi-threaded scanning** – concurrent OS detection & port probing
 - ✅ **tqdm progress bars** – real-time scan progress per phase
 - ✅ **Verbose logging** – `--verbose` flag enables detailed debug output via Python `logging`
 - ✅ Clean tabular output using PrettyTable
 - ✅ Works on CIDR ranges and single IPs
-- ✅ Displays: IP · MAC · Vendor · OS (TTL) · Open Ports
+- ✅ Displays: IP · MAC · Vendor · OS (TTL+Window+Confidence) · Open Ports
 
 ---
 
@@ -92,20 +94,20 @@ sudo python3 Network_scanner.py --h 192.168.1.1 10.0.0.0/24
 
 ```
 [*] Scanning target: 192.168.1.0/24
-[*] OS fingerprinting 4 host(s)...
-  OS Detect |████████████████| 4/4 [00:01]
-[*] Port scanning 4 host(s) × 23 ports...
-  Port Scan  |████████████████| 92/92 [00:03, 27.4 probe/s]
-[✓] Scan completed in 4.82s — 4 host(s) found
+[*] OS fingerprinting 4 host(s) (TTL + TCP Window)...
+  OS Detect |████████████████| 4/4 [00:02]
+[*] Port scanning 4 host(s) × 101 ports...
+  Port Scan  |████████████████| 404/404 [00:12, 33.6 probe/s]
+[✓] Scan completed in 14.82s — 4 host(s) found
 
-+--------------+-------------------+------------+------------------+---------------------------+
-| IP           | MAC               | VENDOR     | OS (TTL)         | OPEN PORTS                |
-+--------------+-------------------+------------+------------------+---------------------------+
-| 192.168.1.1  | aa:bb:cc:11:22:33 | TP-Link    | Net Device [254] | 80/HTTP, 443/HTTPS        |
-| 192.168.1.5  | dd:ee:ff:44:55:66 | Apple Inc  | Linux/macOS [63] | 22/SSH                    |
-| 192.168.1.12 | 11:22:33:44:55:66 | Intel Corp | Windows [127]    | 135/RPC, 445/SMB, 3389/RDP|
-| 192.168.1.20 | 77:88:99:aa:bb:cc | Raspberry  | Linux/macOS [64] | 22/SSH, 80/HTTP, 6379/Redis|
-+--------------+-------------------+------------+------------------+---------------------------+
++--------------+-------------------+------------+--------------------------------------------+------------------------------+
+| IP           | MAC               | VENDOR     | OS (TTL)                                   | OPEN PORTS                   |
++--------------+-------------------+------------+--------------------------------------------+------------------------------+
+| 192.168.1.1  | aa:bb:cc:11:22:33 | TP-Link    | Net Device [TTL:254 WIN:4128] (high)       | 80/HTTP, 443/HTTPS           |
+| 192.168.1.5  | dd:ee:ff:44:55:66 | Apple Inc  | macOS [TTL:64 WIN:65535] (high)            | 22/SSH                       |
+| 192.168.1.12 | 11:22:33:44:55:66 | Intel Corp | Windows [TTL:128 WIN:65535] (high)         | 135/RPC, 445/SMB, 3389/RDP   |
+| 192.168.1.20 | 77:88:99:aa:bb:cc | Raspberry  | Linux [TTL:64 WIN:29200] (high)            | 22/SSH, 80/HTTP, 6379/Redis  |
++--------------+-------------------+------------+--------------------------------------------+------------------------------+
 ```
 
 ---
