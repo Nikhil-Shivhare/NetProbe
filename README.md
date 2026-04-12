@@ -13,7 +13,7 @@ This tool is designed for **educational use and permissioned internal security a
   - Linux / macOS → TTL ≈ 64
   - Windows → TTL ≈ 128
   - Network Devices → TTL ≈ 255
-- ✅ **TCP SYN port scanner** – detects 23 common services (SSH, HTTP, RDP, MySQL, Redis …)
+- ✅ **TCP SYN port scanner** – detects 101 common services (SSH, HTTP, RDP, MySQL, Redis …)
 - ✅ **Multi-threaded scanning** – concurrent OS detection & port probing
 - ✅ **tqdm progress bars** – real-time scan progress per phase
 - ✅ **Verbose logging** – `--verbose` flag enables detailed debug output via Python `logging`
@@ -65,7 +65,7 @@ sudo python3 Network_scanner.py --h <target> [options]
 |---|---|---|---|
 | `--h` | | *required* | Hosts or CIDR ranges to scan |
 | `--threads` | `-t` | `10` | Thread count for all concurrent tasks |
-| `--ports` | `-p` | 23 common ports | Custom port list to scan |
+| `--ports` | `-p` | 101 common ports | Custom port list to scan |
 | `--no-ports` | | `False` | Skip port scanning (host + OS only) |
 | `--verbose` | `-v` | `False` | Enable debug-level logging |
 
