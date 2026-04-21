@@ -22,7 +22,7 @@ log = logging.getLogger("netprobe")
 
 
 
-class networkScanner:
+class NetworkScanner:
     def __init__(self, hosts, threads=10, ports=None, skip_ports=False):
         self.threads    = threads
         self.ports      = ports if ports else list(COMMON_PORTS.keys())
@@ -357,5 +357,6 @@ def get_args():
     return arg.hosts, arg.threads, arg.ports, arg.no_ports
 
 
-hosts, threads, ports, no_ports = get_args()
-networkScanner(hosts, threads=threads, ports=ports, skip_ports=no_ports)
+if __name__ == "__main__":
+    hosts, threads, ports, no_ports = get_args()
+    NetworkScanner(hosts, threads=threads, ports=ports, skip_ports=no_ports)
