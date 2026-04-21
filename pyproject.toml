@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "netprobe"
+version = "2.0.0"
+description = "ARP-based network scanner with OS fingerprinting and port scanning"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["network", "scanner", "arp", "port-scan", "security", "reconnaissance"]
+dependencies = [
+    "scapy",
+    "prettytable",
+    "mac-vendor-lookup",
+    "tqdm",
+]
+
+[project.scripts]
+netprobe = "netprobe.scanner:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["netprobe*"]

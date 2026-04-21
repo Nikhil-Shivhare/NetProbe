@@ -113,3 +113,71 @@ class NetworkScanner:
                         except Exception as e:
                             self.port_info[ip] = []
                             log.warning(f"Port scan failed for {ip}: {e}")
+
+
+# ─── Console Entry Point ──────────────────────────────────────────────────────
+
+def main():
+    """Entry point for the `netprobe` console command (via pyproject.toml)."""
+    import sys
+    import argparse
+    import logging
+
+    logging.basicConfig(
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+        level=logging.WARNING,
+    )
+    _log = logging.getLogger("netprobe")
+
+    BANNER = r"""
+ _   _      _   ____            _
+| \ | | ___| |_|  _ \ _ __ ___| |__   ___
+|  \| |/ _ \ __| |_) | '__/ _ \ '_ \ / _ \
+| |\  |  __/ |_|  __/| | |  __/ |_) |  __/
+|_| \_|\___|\___|_|   |_|  \___|_.__/ \___|
+
+  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning
+"""
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=BANNER,
+    )
+    parser.add_argument(
+        "--h", dest="hosts", nargs="+", metavar="TARGET",
+        help="Host IP or CIDR range(s) to scan  e.g. 192.168.1.0/24",
+    )
+    parser.add_argument(
+        "--threads", "-t", dest="threads", type=int, default=10, metavar="N",
+        help="Thread count for concurrent tasks  (default: 10)",
+    )
+    parser.add_argument(
+        "--ports", "-p", dest="ports", nargs="+", type=int, metavar="PORT",
+        help="Custom port list  e.g. --ports 22 80 443",
+    )
+    parser.add_argument(
+        "--no-ports", dest="no_ports", action="store_true",
+        help="Skip port scanning — host + OS only",
+    )
+    parser.add_argument(
+        "--verbose", "-v", dest="verbose", action="store_true",
+        help="Enable timestamped DEBUG logging",
+    )
+
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+    arg = parser.parse_args()
+
+    if arg.verbose:
+        _log.setLevel(logging.DEBUG)
+
+    NetworkScanner(
+        arg.hosts,
+        threads=arg.threads,
+        ports=arg.ports,
+        skip_ports=arg.no_ports,
+    )
+
