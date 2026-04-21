@@ -34,7 +34,8 @@ class NetworkScanner:
             start = time.time()
 
             self._create_packet()
-            self._send_packet()
+            if not self._send_packet():
+                continue
             self._run_scan()
 
             elapsed = time.time() - start
@@ -57,10 +58,11 @@ class NetworkScanner:
         if ans:
             self.ans = ans
             log.debug(f"ARP: received {len(ans)} reply(ies)")
+            return True
         else:
-            log.warning("No hosts responded to ARP broadcast")
-            print("[!] No hosts are up.")
-            sys.exit(1)
+            log.warning(f"No hosts responded to ARP broadcast on {self.host}")
+            print(f"[!] No hosts are up on {self.host}.")
+            return False
 
     # ─── Phase 2 + 3: OS Fingerprint & Port Scan (concurrent) ────────────────
 
