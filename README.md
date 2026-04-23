@@ -12,7 +12,7 @@
 <br/>
 
 > **A fast, modular Python network reconnaissance tool.**  
-> Discover live hosts · Fingerprint operating systems · Probe 101 common ports — all in one command.
+> Discover live hosts · Fingerprint operating systems · Probe up to 501 common ports — all in one command.
 
 </div>
 
@@ -58,7 +58,7 @@ All phases run **concurrently** using thread pools, with real-time progress bars
 | 🧬 **Dual OS Fingerprinting** | ICMP TTL + TCP Window Size — two probes, one verdict with confidence score |
 | 🔎 **Linux vs macOS Detection** | Correctly separates Linux (WIN≈29200) from macOS (WIN≈65535) — both have TTL≈64 |
 | 🔒 **TCP SYN Port Scanner** | Stealthy half-open scan — sends SYN, reads SYN-ACK, resets immediately |
-| 📦 **101 Common Ports** | 12 categories: web, databases, mail, remote access, DevOps, monitoring & more |
+| 📦 **101 to 501 Ports** | 101 default top ports, or 501 ports with `--all-ports` |
 | ⚡ **Multi-threaded** | Configurable thread pool (`--threads`) for OS detection and port probing |
 | 📊 **Live Progress Bars** | Per-phase `tqdm` bars showing count, elapsed time, and probe rate |
 | 🗂️ **Modular Package** | Clean `netprobe/` package — each concern in its own testable module |
@@ -153,6 +153,7 @@ sudo netprobe --h <target> [options]
 | `--h TARGET [...]` | | *required* | One or more host IPs or CIDR ranges |
 | `--threads N` | `-t` | `10` | Thread count for concurrent tasks |
 | `--ports PORT [...]` | `-p` | 101 common ports | Custom port list to scan |
+| `--all-ports` | | `False` | Scan all 501 top ports |
 | `--no-ports` | | `False` | Skip port scan — discovery + OS only |
 | `--verbose` | `-v` | `False` | Enable timestamped DEBUG logging |
 
@@ -214,7 +215,7 @@ sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 
 ## 🗄️ Port Coverage
 
-NetProbe scans **101 ports** across 12 service categories by default:
+NetProbe scans **101 ports** across 12 service categories by default (expandable to **501 ports** via `--all-ports`):
 
 | Category | Examples |
 |---|---|
@@ -231,7 +232,7 @@ NetProbe scans **101 ports** across 12 service categories by default:
 | Security | OpenVPN (1194), PPTP (1723), IKE (500), SOCKS (1080) |
 | Misc | NTP (123), IRC (194/6667), Git (9418), Memcached (11211) |
 
-> Custom ports can override the default list with `--ports 22 80 443 ...`
+> Custom ports can override the default list with `--ports 22 80 443 ...` or use `--all-ports` to scan the top 501 ports.
 
 ---
 
@@ -256,7 +257,7 @@ NetProbe scans **101 ports** across 12 service categories by default:
 - [x] TTL-based OS fingerprinting
 - [x] TCP Window Size OS fingerprinting
 - [x] Combined OS confidence scoring (`high` / `medium` / `low`)
-- [x] TCP SYN port scanner (101 ports, 12 categories)
+- [x] TCP SYN port scanner (101 default, 501 via `--all-ports`)
 - [x] Multi-threaded scanning with live progress bars
 - [x] Modular `netprobe/` package structure
 - [x] pip-installable with global `netprobe` command

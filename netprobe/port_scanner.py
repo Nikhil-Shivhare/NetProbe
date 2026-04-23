@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from scapy.all import IP, TCP, sr1, send
-from netprobe.ports import COMMON_PORTS
+from netprobe.ports import ALL_PORTS
 
 log = logging.getLogger("netprobe")
 
@@ -20,7 +20,7 @@ def scan_ports(ip, ports, threads=10, pbar=None):
             reply = sr1(pkt, timeout=0.5, verbose=False)
             if reply and reply.haslayer(TCP) and reply[TCP].flags == 0x12:
                 send(IP(dst=ip) / TCP(dport=port, flags="R"), verbose=False)
-                service = COMMON_PORTS.get(port, "unknown")
+                service = ALL_PORTS.get(port, "unknown")
                 log.debug(f"Open: {ip}:{port} ({service})")
                 return f"{port}/{service}"
         except Exception:

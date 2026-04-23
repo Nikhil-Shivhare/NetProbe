@@ -98,6 +98,10 @@ def get_args():
         help="Skip port scanning — show host + OS info only"
     )
     parser.add_argument(
+        "--all-ports", dest="all_ports", action="store_true",
+        help="Scan all 501 ports (default is 101 common ports)"
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging for every packet"
     )
@@ -112,9 +116,9 @@ def get_args():
         log.setLevel(logging.DEBUG)
         log.debug("Verbose mode enabled")
 
-    return arg.hosts, arg.threads, arg.ports, arg.no_ports
+    return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports
 
 
 if __name__ == "__main__":
-    hosts, threads, ports, no_ports = get_args()
-    NetworkScanner(hosts, threads=threads, ports=ports, skip_ports=no_ports)
+    hosts, threads, ports, no_ports, all_ports = get_args()
+    NetworkScanner(hosts, threads=threads, ports=ports, skip_ports=no_ports, all_ports=all_ports)

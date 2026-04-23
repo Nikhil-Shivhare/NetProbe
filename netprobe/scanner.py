@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from scapy.all import Ether, ARP, srp
 
-from netprobe.ports import COMMON_PORTS
+from netprobe.ports import COMMON_PORTS, ALL_PORTS
 from netprobe.os_fingerprint import detect_os
 from netprobe.port_scanner import scan_ports
 from netprobe.output import print_results
@@ -18,10 +18,16 @@ log = logging.getLogger("netprobe")
 class NetworkScanner:
     """ARP-based network scanner with OS fingerprinting and port scanning."""
 
-    def __init__(self, hosts, threads=10, ports=None, skip_ports=False):
+    def __init__(self, hosts, threads=10, ports=None, skip_ports=False, all_ports=False):
         self.threads    = threads
-        self.ports      = ports if ports else list(COMMON_PORTS.keys())
         self.skip_ports = skip_ports
+        
+        if ports:
+            self.ports = ports
+        elif all_ports:
+            self.ports = list(ALL_PORTS.keys())
+        else:
+            self.ports = list(COMMON_PORTS.keys())
 
         for host in hosts:
             self.host      = host
@@ -161,6 +167,10 @@ def main():
         help="Skip port scanning — host + OS only",
     )
     parser.add_argument(
+        "--all-ports", dest="all_ports", action="store_true",
+        help="Scan all 501 ports (default is 101 common ports)",
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging",
     )
@@ -179,5 +189,6 @@ def main():
         threads=arg.threads,
         ports=arg.ports,
         skip_ports=arg.no_ports,
+        all_ports=arg.all_ports,
     )
 
