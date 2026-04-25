@@ -11,6 +11,7 @@ from netprobe.ports import COMMON_PORTS, ALL_PORTS
 from netprobe.os_fingerprint import detect_os
 from netprobe.port_scanner import scan_ports
 from netprobe.output import print_results
+from netprobe.validator import validate_targets, validate_ports, validate_threads
 
 log = logging.getLogger("netprobe")
 
@@ -184,6 +185,11 @@ def main():
     if arg.verbose:
         _log.setLevel(logging.DEBUG)
 
+    # ── Input validation ──────────────────────────────────────────────────
+    validate_targets(arg.hosts)
+    validate_ports(arg.ports)
+    validate_threads(arg.threads)
+
     NetworkScanner(
         arg.hosts,
         threads=arg.threads,
@@ -191,4 +197,3 @@ def main():
         skip_ports=arg.no_ports,
         all_ports=arg.all_ports,
     )
-

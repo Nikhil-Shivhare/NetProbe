@@ -4,6 +4,7 @@
 import sys
 import logging
 from netprobe import NetworkScanner
+from netprobe.validator import validate_targets, validate_ports, validate_threads
 
 # ─── Logging Setup ────────────────────────────────────────────────────────────
 
@@ -115,6 +116,11 @@ def get_args():
     if arg.verbose:
         log.setLevel(logging.DEBUG)
         log.debug("Verbose mode enabled")
+
+    # ── Input validation ──────────────────────────────────────────────────
+    validate_targets(arg.hosts)
+    validate_ports(arg.ports)
+    validate_threads(arg.threads)
 
     return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports
 
