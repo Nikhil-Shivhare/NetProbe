@@ -6,7 +6,6 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Scapy](https://img.shields.io/badge/Powered%20by-Scapy-009688?style=for-the-badge)](https://scapy.net/)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Nikhil-Shivhare/NetProbe)
-[![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
 [![Requires Root](https://img.shields.io/badge/Requires-sudo-ef4444?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Nikhil-Shivhare/NetProbe)
 
 <br/>
@@ -59,7 +58,7 @@ OS and port work inside each phase is threaded; phases run sequentially after AR
 |---|---|
 | 🖧 **ARP Host Discovery** | Ethernet broadcast scan to find all live devices on a subnet |
 | 🧬 **Dual OS Fingerprinting** | ICMP TTL + TCP Window Size — two probes, one verdict with confidence score |
-| 🔎 **Linux vs macOS Detection** | Correctly separates Linux (WIN≈29200) from macOS (WIN≈65535) — both have TTL≈64 |
+| 🔎 **Linux vs macOS Detection** | Heuristic TTL + TCP window-size detection; separates Linux/macOS when the signals align, but conflicts are reported with medium confidence |
 | 🔒 **TCP SYN Port Scanner** | Stealthy half-open scan — sends SYN, reads SYN-ACK, resets immediately |
 | 📦 **101 to 501 Ports** | 101 default top ports, or 501 ports with `--all-ports` |
 | 🏷️ **Banner Grabbing** | Optional Phase 4: grab service version strings via `--banners` (SSH, FTP, SMTP, HTTP/S, POP3, IMAP + generic fallback) |
@@ -68,7 +67,7 @@ OS and port work inside each phase is threaded; phases run sequentially after AR
 | 📊 **Live Progress Bars** | Per-phase `tqdm` bars showing count, elapsed time, and probe rate |
 | 🗂️ **Modular Package** | Clean `netprobe/` package — each concern in its own testable module |
 | 🖥️ **Rich CLI** | Full argparse interface with ASCII banner, usage examples, and `--help` |
-| 📝 **Structured Debug Logging** | `--verbose` flag for timestamped structured DEBUG logging of probe events, not raw Scapy packet dumps |
+| 📝 **Structured Debug Logging** | Installed CLI `--verbose` enables timestamped structured DEBUG logging; direct wrapper help text is outdated and does not mean raw Scapy packet dumps |
 | 🔁 **Multi-target Support** | Scan multiple IPs and CIDR ranges in a single command |
 | 🛡️ **Graceful Error Recovery** | Skips unreachable targets with a warning — never aborts the full scan |
 | 📦 **pip Installable** | `pip install .` registers a global `netprobe` command via `pyproject.toml` |
@@ -178,7 +177,7 @@ sudo python3 Network_scanner.py --h 192.168.1.0/24
 | `--banner-timeout SEC` | | `4.0` | Per-connection timeout for banner grabs in seconds |
 | `--speed-test` | | `False` | Run an internet speed test and exit (no `--h` needed) |
 | `--speed-server ID` | | auto | Ookla server ID to use; omit to auto-select the fastest server |
-| `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; does not print raw Scapy packet dumps |
+| `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; direct wrapper help text is outdated |
 
 ### Examples
 
@@ -210,7 +209,7 @@ netprobe --speed-test
 # Speed test with a specific Ookla server ID
 netprobe --speed-test --speed-server 21541
 
-# Verbose mode — enable structured DEBUG logging for probe events
+# Verbose mode — enable structured DEBUG logging for probe events (direct wrapper help text is outdated)
 sudo netprobe --h 192.168.1.5 --verbose
 
 # Scan multiple targets in one run
@@ -244,10 +243,10 @@ sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 - Requires `sudo`/root because Scapy raw sockets are used for ARP, ICMP, and TCP SYN probes.
 - Supports IPv4 IP addresses and CIDR ranges only; host ranges such as `192.168.1.1-10` are not supported.
 - Port scanning is TCP SYN only; UDP scans are not supported.
-- `--banners` requires port scanning to be active; it is silently skipped when combined with `--no-ports`.
-- Banner grabbing uses a 2-second per-connection timeout; firewalled ports may appear as `[timeout]`.
+- `--banners` requires port scanning to be active; it prints a warning and is skipped when combined with `--no-ports`.
+- Banner grabbing uses a 4.0-second per-connection timeout; firewalled ports may appear as `[timeout]`.
 - `--all-ports` scans the 501 configured ports, not every TCP port from 1–65535.
-- `--verbose` enables structured DEBUG logging for probe events; it does not enable full raw Scapy packet dumps.
+- `--verbose` enables structured DEBUG logging for probe events; the direct wrapper help text is outdated, but actual behavior does not enable full raw Scapy packet dumps.
 
 ---
 
