@@ -12,7 +12,7 @@
 <br/>
 
 > **A fast, modular Python network reconnaissance tool.**  
-> Discover live hosts · Fingerprint operating systems · Probe up to 501 common ports — all in one command.
+> Discover live hosts · Fingerprint operating systems · Probe up to 501 common ports · Grab service banners — all in one command.
 
 </div>
 
@@ -26,6 +26,8 @@
 - [Project Structure](#️-project-structure)
 - [Installation](#-installation)
 - [Usage](#-usage)
+  - [Direct-run usage](#-direct-run-usage)
+  - [Current limitations](#-current-limitations)
 - [Sample Output](#-sample-output)
 - [Port Coverage](#-port-coverage)
 - [Technologies](#️-technologies)
@@ -38,15 +40,16 @@
 
 **NetProbe** is a network reconnaissance toolkit built with Python and Scapy. It is designed for **authorized security audits and educational use**, enabling network administrators and security researchers to quickly enumerate live devices, identify operating systems, and discover exposed services on a local network.
 
-It runs in **three phases**:
+It runs in up to **four phases**:
 
 ```
 Phase 1 → ARP broadcast          Discover all live hosts on the network
 Phase 2 → ICMP + TCP SYN probe   Fingerprint each host's OS
 Phase 3 → TCP SYN port scan      Identify open services on each host
+Phase 4 → Banner grabbing        Extract service version strings (opt-in: --banners)
 ```
 
-All phases run **concurrently** using thread pools, with real-time progress bars and structured logging.
+OS and port work inside each phase is threaded; phases run sequentially after ARP discovery.
 
 ---
 
@@ -59,11 +62,12 @@ All phases run **concurrently** using thread pools, with real-time progress bars
 | 🔎 **Linux vs macOS Detection** | Correctly separates Linux (WIN≈29200) from macOS (WIN≈65535) — both have TTL≈64 |
 | 🔒 **TCP SYN Port Scanner** | Stealthy half-open scan — sends SYN, reads SYN-ACK, resets immediately |
 | 📦 **101 to 501 Ports** | 101 default top ports, or 501 ports with `--all-ports` |
-| ⚡ **Multi-threaded** | Configurable thread pool (`--threads`) for OS detection and port probing |
+| 🏷️ **Banner Grabbing** | Optional Phase 4: grab service version strings via `--banners` (SSH, FTP, SMTP, HTTP/S, POP3, IMAP + generic fallback) |
+| ⚡ **Multi-threaded** | Configurable thread pool (`--threads`) for OS detection, port probing, and banner grabbing |
 | 📊 **Live Progress Bars** | Per-phase `tqdm` bars showing count, elapsed time, and probe rate |
 | 🗂️ **Modular Package** | Clean `netprobe/` package — each concern in its own testable module |
 | 🖥️ **Rich CLI** | Full argparse interface with ASCII banner, usage examples, and `--help` |
-| 📝 **Verbose Debug Logging** | `--verbose` flag for timestamped per-packet debug output |
+| 📝 **Structured Debug Logging** | `--verbose` flag for timestamped structured DEBUG logging of probe events, not raw Scapy packet dumps |
 | 🔁 **Multi-target Support** | Scan multiple IPs and CIDR ranges in a single command |
 | 🛡️ **Graceful Error Recovery** | Skips unreachable targets with a warning — never aborts the full scan |
 | 📦 **pip Installable** | `pip install .` registers a global `netprobe` command via `pyproject.toml` |
@@ -96,17 +100,21 @@ Output format per host: `Linux [TTL:64 WIN:29200] (high)`
 
 ```
 NetProbe/
+├── Network_scanner.py         # Direct CLI wrapper for running without installing
+├── README.md                  # Project documentation
+├── ports.py                   # Duplicate top-level port/service mapping file
+├── pyproject.toml             # Python package metadata and `netprobe` console script
+├── requirements.txt           # Runtime dependency list
 ├── netprobe/
-│   ├── __init__.py          # Package init — exports NetworkScanner v2.0.0
-│   ├── scanner.py           # NetworkScanner class + netprobe CLI entry point
-│   ├── os_fingerprint.py    # Dual-probe OS detection (TTL + TCP Window)
-│   ├── port_scanner.py      # TCP SYN half-open port scanner
-│   ├── output.py            # PrettyTable result formatter
-│   └── ports.py             # 101 port → service name mappings
-├── Network_scanner.py       # Backward-compatible CLI wrapper
-├── pyproject.toml           # pip packaging — registers `netprobe` command
-├── requirements.txt         # pip dependency list
-└── README.md
+│   ├── __init__.py            # Package init — exports NetworkScanner v2.0.0
+│   ├── scanner.py             # NetworkScanner orchestrator + installed `netprobe` CLI entry point
+│   ├── validator.py           # CLI input validation for targets, ports, and threads
+│   ├── os_fingerprint.py      # Dual-probe OS detection using ICMP TTL + TCP window size
+│   ├── port_scanner.py        # TCP SYN half-open port scanner
+│   ├── banner_grabber.py      # Phase 4 — service banner & version extraction (stdlib only)
+│   ├── output.py              # PrettyTable result formatter with MAC vendor lookup
+│   └── ports.py               # Common + extended TCP port/service mappings
+└── __pycache__/               # Generated Python bytecode; should normally remain untracked
 ```
 
 ---
@@ -138,12 +146,22 @@ pip install -r requirements.txt
 sudo python3 Network_scanner.py --h 192.168.1.0/24
 ```
 
+This runs the wrapper script directly and does not require building or installing the package.
+
 ---
 
 ## 🚀 Usage
 
 ```
 sudo netprobe --h <target> [options]
+```
+
+### Direct-run usage
+
+If you did not install the package, replace `netprobe` with `python3 Network_scanner.py`:
+
+```bash
+sudo python3 Network_scanner.py --h 192.168.1.0/24
 ```
 
 ### CLI Options
@@ -155,7 +173,8 @@ sudo netprobe --h <target> [options]
 | `--ports PORT [...]` | `-p` | 101 common ports | Custom port list to scan |
 | `--all-ports` | | `False` | Scan all 501 top ports |
 | `--no-ports` | | `False` | Skip port scan — discovery + OS only |
-| `--verbose` | `-v` | `False` | Enable timestamped DEBUG logging |
+| `--banners` | `-b` | `False` | Enable Phase 4: grab service banners from all open ports |
+| `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; does not print raw Scapy packet dumps |
 
 ### Examples
 
@@ -172,17 +191,34 @@ sudo netprobe --h 192.168.1.0/24 --no-ports
 # Scan with more threads and a custom port list
 sudo netprobe --h 192.168.1.0/24 --threads 30 --ports 22 80 443 3306 5432
 
-# Verbose mode — see every packet sent and received
+# Banner grabbing — grab service versions from all open ports
+sudo netprobe --h 192.168.1.0/24 --banners
+
+# Banner grabbing on specific ports only
+sudo netprobe --h 192.168.1.1 --ports 22 80 443 --banners
+
+# Verbose mode — enable structured DEBUG logging for probe events
 sudo netprobe --h 192.168.1.5 --verbose
 
 # Scan multiple targets in one run
 sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 ```
 
+### Current limitations
+
+- Requires `sudo`/root because Scapy raw sockets are used for ARP, ICMP, and TCP SYN probes.
+- Supports IPv4 IP addresses and CIDR ranges only; host ranges such as `192.168.1.1-10` are not supported.
+- Port scanning is TCP SYN only; UDP scans are not supported.
+- `--banners` requires port scanning to be active; it is silently skipped when combined with `--no-ports`.
+- Banner grabbing uses a 2-second per-connection timeout; firewalled ports may appear as `[timeout]`.
+- `--all-ports` scans the 501 configured ports, not every TCP port from 1–65535.
+- `--verbose` enables structured DEBUG logging for probe events; it does not enable full raw Scapy packet dumps.
+
 ---
 
 ## 📋 Sample Output
 
+**Without `--banners`** (default):
 ```
 [*] Scanning target: 192.168.1.0/24
 [*] OS fingerprinting 4 host(s) (TTL + TCP Window)...
@@ -201,6 +237,27 @@ sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 +--------------+-------------------+------------+--------------------------------------------+------------------------------+
 ```
 
+**With `--banners`** (Phase 4 enabled):
+```
+[*] Scanning target: 192.168.1.0/24
+[*] OS fingerprinting 4 host(s) (TTL + TCP Window)...
+  OS Detect |████████████████████████| 4/4 [00:02]
+[*] Port scanning 4 host(s) × 101 ports...
+  Port Scan  |████████████████████████| 404/404 [00:12, 33.6 probe/s]
+[*] Banner grabbing 3 host(s) with open ports...
+[✓] Scan completed in 22.14s — 4 host(s) found
+
++--------------+-------------------+------------+------------------------------+------------------------------+----------------------------------+
+| IP           | MAC               | VENDOR     | OS (TTL)                     | OPEN PORTS                   | BANNERS                          |
++--------------+-------------------+------------+------------------------------+------------------------------+----------------------------------+
+| 192.168.1.1  | aa:bb:cc:11:22:33 | TP-Link    | Net Device [TTL:254 ...](high)| 80/HTTP, 443/HTTPS          | 80/HTTP      → nginx/1.24.0      |
+|              |                   |            |                              |                              | 443/HTTPS    → nginx/1.24.0      |
+| 192.168.1.5  | dd:ee:ff:44:55:66 | Apple Inc  | macOS [TTL:64 WIN:65535](high)| 22/SSH                      | 22/SSH       → OpenSSH 9.2p1     |
+| 192.168.1.20 | 77:88:99:aa:bb:cc | Raspberry  | Linux [TTL:64 WIN:29200](high)| 22/SSH, 80/HTTP             | 22/SSH       → OpenSSH 8.9p1     |
+|              |                   |            |                              |                              | 80/HTTP      → Apache/2.4.57     |
++--------------+-------------------+------------+------------------------------+------------------------------+----------------------------------+
+```
+
 ### Output Columns
 
 | Column | Description |
@@ -210,6 +267,7 @@ sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 | **VENDOR** | NIC manufacturer resolved from the MAC OUI prefix |
 | **OS (TTL)** | OS verdict — `Name [TTL:x WIN:y] (confidence)` |
 | **OPEN PORTS** | Sorted open ports — `port/service`, e.g. `22/SSH, 80/HTTP` |
+| **BANNERS** | *(only with `--banners`)* One line per open port: `22/SSH → OpenSSH 9.2p1` |
 
 ---
 
@@ -262,10 +320,10 @@ NetProbe scans **101 ports** across 12 service categories by default (expandable
 - [x] Modular `netprobe/` package structure
 - [x] pip-installable with global `netprobe` command
 - [x] Graceful error recovery for unreachable targets
+- [x] Service banner grabbing — SSH, FTP, SMTP, HTTP/S, POP3, IMAP (`--banners`)
 
 ### 🔜 Planned
 - [ ] JSON / CSV / HTML scan export (`--output report.json`)
-- [ ] Service banner grabbing — SSH, HTTP, SMB (`--banners`)
 - [ ] Colorized terminal output with confidence indicators
 - [ ] Scan summary block (total hosts, ports, time)
 - [ ] UDP service scan (`--udp`)

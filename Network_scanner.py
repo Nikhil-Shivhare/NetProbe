@@ -25,7 +25,7 @@ BANNER = r"""
 | |\  |  __/ |_|  __/| | |  __/ |_) |  __/
 |_| \_|\___|\___|_|   |_|  \___|_.__/ \___|
 
-  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning
+  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning  ·  Banner Grabbing
 """
 
 EXAMPLES = """
@@ -51,6 +51,12 @@ EXAMPLES = """
   Skip port scanning — host discovery + OS only (fastest):
     sudo python3 Network_scanner.py --h 192.168.1.0/24 --no-ports
 
+  Enable banner grabbing (Phase 4) after port scan:
+    sudo python3 Network_scanner.py --h 192.168.1.0/24 --banners
+
+  Banner grabbing on specific ports only:
+    sudo python3 Network_scanner.py --h 192.168.1.0/24 --ports 22 80 443 --banners
+
   Enable verbose/debug logging:
     sudo python3 Network_scanner.py --h 192.168.1.1 --verbose
 
@@ -69,6 +75,9 @@ EXAMPLES = """
                   Windows     → TTL ≈ 128
                   Net Device  → TTL ≈ 255
   OPEN PORTS →  port/service  e.g. 22/SSH, 80/HTTP, 443/HTTPS
+  BANNERS    →  (only with --banners)  service version or raw greeting
+                  e.g. 22/SSH  → OpenSSH 9.2p1
+                       80/HTTP → Apache/2.4.57
 
 ─────────────────────────────────────────────────────
 """
@@ -103,6 +112,10 @@ def get_args():
         help="Scan all 501 ports (default is 101 common ports)"
     )
     parser.add_argument(
+        "--banners", "-b", dest="banners", action="store_true",
+        help="Enable Phase 4: grab service banners from open ports"
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging for every packet"
     )
@@ -122,9 +135,16 @@ def get_args():
     validate_ports(arg.ports)
     validate_threads(arg.threads)
 
-    return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports
+    return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports, arg.banners
 
 
 if __name__ == "__main__":
-    hosts, threads, ports, no_ports, all_ports = get_args()
-    NetworkScanner(hosts, threads=threads, ports=ports, skip_ports=no_ports, all_ports=all_ports)
+    hosts, threads, ports, no_ports, all_ports, banners = get_args()
+    NetworkScanner(
+        hosts,
+        threads=threads,
+        ports=ports,
+        skip_ports=no_ports,
+        all_ports=all_ports,
+        grab_banners=banners,
+    )

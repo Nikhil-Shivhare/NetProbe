@@ -10,6 +10,7 @@ from scapy.all import Ether, ARP, srp
 from netprobe.ports import COMMON_PORTS, ALL_PORTS
 from netprobe.os_fingerprint import detect_os
 from netprobe.port_scanner import scan_ports
+from netprobe.banner_grabber import grab_banners_for_host, DEFAULT_TIMEOUT as BANNER_TIMEOUT
 from netprobe.output import print_results
 from netprobe.validator import validate_targets, validate_ports, validate_threads
 
@@ -17,12 +18,24 @@ log = logging.getLogger("netprobe")
 
 
 class NetworkScanner:
-    """ARP-based network scanner with OS fingerprinting and port scanning."""
+    """ARP-based network scanner with OS fingerprinting, port scanning, and banner grabbing."""
 
-    def __init__(self, hosts, threads=10, ports=None, skip_ports=False, all_ports=False):
-        self.threads    = threads
-        self.skip_ports = skip_ports
-        
+    def __init__(
+        self,
+        hosts,
+        threads: int = 10,
+        ports=None,
+        skip_ports: bool = False,
+        all_ports: bool = False,
+        grab_banners: bool = False,
+    ):
+        self.threads      = threads
+        self.skip_ports   = skip_ports
+        self.grab_banners = grab_banners and not skip_ports
+
+        if self.grab_banners != grab_banners and grab_banners:
+            print("[!] Warning: --banners ignored because --no-ports was also set.")
+
         if ports:
             self.ports = ports
         elif all_ports:
@@ -31,10 +44,11 @@ class NetworkScanner:
             self.ports = list(COMMON_PORTS.keys())
 
         for host in hosts:
-            self.host      = host
-            self.alive     = {}      # { ip: mac }
-            self.os_info   = {}      # { ip: "OS [TTL]" }
-            self.port_info = {}      # { ip: ["80/HTTP", ...] }
+            self.host        = host
+            self.alive       = {}      # { ip: mac }
+            self.os_info     = {}      # { ip: "OS [TTL]" }
+            self.port_info   = {}      # { ip: ["80/HTTP", ...] }
+            self.banner_info = {}      # { ip: { "22/SSH": BannerResult, ... } }
 
             print(f"\n[*] Scanning target: {host}")
             log.info(f"Starting scan on {host} | threads={self.threads} | ports={len(self.ports)}")
@@ -49,7 +63,13 @@ class NetworkScanner:
             print(f"[✓] Scan completed in {elapsed:.2f}s — {len(self.alive)} host(s) found\n")
             log.info(f"Scan done: {len(self.alive)} hosts up in {elapsed:.2f}s")
 
-            print_results(self.alive, self.os_info, self.port_info, self.skip_ports)
+            print_results(
+                self.alive,
+                self.os_info,
+                self.port_info,
+                self.skip_ports,
+                banner_info=self.banner_info if self.grab_banners else None,
+            )
 
     # ─── ARP Discovery ────────────────────────────────────────────────────────
 
@@ -121,6 +141,37 @@ class NetworkScanner:
                             self.port_info[ip] = []
                             log.warning(f"Port scan failed for {ip}: {e}")
 
+        # Phase 4: Optional banner grabbing (only when --banners is set)
+        if self.grab_banners:
+            hosts_with_ports = [
+                ip for ip in self.alive if self.port_info.get(ip)
+            ]
+            total_banner = len(hosts_with_ports)
+            print(f"[*] Banner grabbing {total_banner} host(s) with open ports...")
+            with tqdm(total=total_banner, desc="  Banners   ", unit="host",
+                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}]",
+                      leave=False) as pbar:
+                with ThreadPoolExecutor(max_workers=self.threads) as ex:
+                    futures = {
+                        ex.submit(
+                            grab_banners_for_host,
+                            ip,
+                            self.port_info[ip],
+                            BANNER_TIMEOUT,
+                            self.threads,
+                        ): ip
+                        for ip in hosts_with_ports
+                    }
+                    for future in as_completed(futures):
+                        ip = futures[future]
+                        try:
+                            self.banner_info[ip] = future.result()
+                            log.debug(f"Banners for {ip}: {self.banner_info[ip]}")
+                        except Exception as e:
+                            self.banner_info[ip] = {}
+                            log.warning(f"Banner grab failed for {ip}: {e}")
+                        pbar.update(1)
+
 
 # ─── Console Entry Point ──────────────────────────────────────────────────────
 
@@ -144,7 +195,7 @@ def main():
 | |\  |  __/ |_|  __/| | |  __/ |_) |  __/
 |_| \_|\___|\___|_|   |_|  \___|_.__/ \___|
 
-  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning
+  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning  ·  Banner Grabbing
 """
 
     parser = argparse.ArgumentParser(
@@ -172,6 +223,10 @@ def main():
         help="Scan all 501 ports (default is 101 common ports)",
     )
     parser.add_argument(
+        "--banners", "-b", dest="banners", action="store_true",
+        help="Enable Phase 4: grab service banners from open ports (requires port scan)",
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging",
     )
@@ -196,4 +251,5 @@ def main():
         ports=arg.ports,
         skip_ports=arg.no_ports,
         all_ports=arg.all_ports,
+        grab_banners=arg.banners,
     )
