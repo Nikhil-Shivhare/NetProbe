@@ -28,10 +28,12 @@ class NetworkScanner:
         skip_ports: bool = False,
         all_ports: bool = False,
         grab_banners: bool = False,
+        banner_timeout: float = BANNER_TIMEOUT,
     ):
-        self.threads      = threads
-        self.skip_ports   = skip_ports
-        self.grab_banners = grab_banners and not skip_ports
+        self.threads        = threads
+        self.skip_ports     = skip_ports
+        self.grab_banners   = grab_banners and not skip_ports
+        self.banner_timeout = banner_timeout
 
         if self.grab_banners != grab_banners and grab_banners:
             print("[!] Warning: --banners ignored because --no-ports was also set.")
@@ -157,7 +159,7 @@ class NetworkScanner:
                             grab_banners_for_host,
                             ip,
                             self.port_info[ip],
-                            BANNER_TIMEOUT,
+                            self.banner_timeout,
                             self.threads,
                         ): ip
                         for ip in hosts_with_ports
@@ -227,6 +229,11 @@ def main():
         help="Enable Phase 4: grab service banners from open ports (requires port scan)",
     )
     parser.add_argument(
+        "--banner-timeout", dest="banner_timeout", type=float,
+        default=BANNER_TIMEOUT, metavar="SEC",
+        help=f"Per-connection timeout for banner grabbing in seconds  (default: {BANNER_TIMEOUT})",
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging",
     )
@@ -252,4 +259,5 @@ def main():
         skip_ports=arg.no_ports,
         all_ports=arg.all_ports,
         grab_banners=arg.banners,
+        banner_timeout=arg.banner_timeout,
     )

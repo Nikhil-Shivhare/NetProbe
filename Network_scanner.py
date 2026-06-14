@@ -5,6 +5,7 @@ import sys
 import logging
 from netprobe import NetworkScanner
 from netprobe.validator import validate_targets, validate_ports, validate_threads
+from netprobe.banner_grabber import DEFAULT_TIMEOUT as BANNER_TIMEOUT
 
 # ─── Logging Setup ────────────────────────────────────────────────────────────
 
@@ -116,6 +117,11 @@ def get_args():
         help="Enable Phase 4: grab service banners from open ports"
     )
     parser.add_argument(
+        "--banner-timeout", dest="banner_timeout", type=float,
+        default=BANNER_TIMEOUT, metavar="SEC",
+        help=f"Per-connection timeout for banner grabbing in seconds  (default: {BANNER_TIMEOUT})"
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging for every packet"
     )
@@ -135,11 +141,11 @@ def get_args():
     validate_ports(arg.ports)
     validate_threads(arg.threads)
 
-    return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports, arg.banners
+    return arg.hosts, arg.threads, arg.ports, arg.no_ports, arg.all_ports, arg.banners, arg.banner_timeout
 
 
 if __name__ == "__main__":
-    hosts, threads, ports, no_ports, all_ports, banners = get_args()
+    hosts, threads, ports, no_ports, all_ports, banners, banner_timeout = get_args()
     NetworkScanner(
         hosts,
         threads=threads,
@@ -147,4 +153,5 @@ if __name__ == "__main__":
         skip_ports=no_ports,
         all_ports=all_ports,
         grab_banners=banners,
+        banner_timeout=banner_timeout,
     )

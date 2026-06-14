@@ -174,6 +174,7 @@ sudo python3 Network_scanner.py --h 192.168.1.0/24
 | `--all-ports` | | `False` | Scan all 501 top ports |
 | `--no-ports` | | `False` | Skip port scan — discovery + OS only |
 | `--banners` | `-b` | `False` | Enable Phase 4: grab service banners from all open ports |
+| `--banner-timeout SEC` | | `4.0` | Per-connection timeout for banner grabs in seconds |
 | `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; does not print raw Scapy packet dumps |
 
 ### Examples
@@ -196,6 +197,9 @@ sudo netprobe --h 192.168.1.0/24 --banners
 
 # Banner grabbing on specific ports only
 sudo netprobe --h 192.168.1.1 --ports 22 80 443 --banners
+
+# Increase banner timeout for slow/embedded devices (default 4s)
+sudo netprobe --h 192.168.1.0/24 --banners --banner-timeout 6
 
 # Verbose mode — enable structured DEBUG logging for probe events
 sudo netprobe --h 192.168.1.5 --verbose
