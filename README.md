@@ -64,6 +64,7 @@ OS and port work inside each phase is threaded; phases run sequentially after AR
 | 📦 **101 to 501 Ports** | 101 default top ports, or 501 ports with `--all-ports` |
 | 🏷️ **Banner Grabbing** | Optional Phase 4: grab service version strings via `--banners` (SSH, FTP, SMTP, HTTP/S, POP3, IMAP + generic fallback) |
 | ⚡ **Multi-threaded** | Configurable thread pool (`--threads`) for OS detection, port probing, and banner grabbing |
+| 🌐 **Internet Speed Test** | Standalone `--speed-test` mode: measures download/upload Mbps and ping to an Ookla server — independent of LAN scanning |
 | 📊 **Live Progress Bars** | Per-phase `tqdm` bars showing count, elapsed time, and probe rate |
 | 🗂️ **Modular Package** | Clean `netprobe/` package — each concern in its own testable module |
 | 🖥️ **Rich CLI** | Full argparse interface with ASCII banner, usage examples, and `--help` |
@@ -102,7 +103,6 @@ Output format per host: `Linux [TTL:64 WIN:29200] (high)`
 NetProbe/
 ├── Network_scanner.py         # Direct CLI wrapper for running without installing
 ├── README.md                  # Project documentation
-├── ports.py                   # Duplicate top-level port/service mapping file
 ├── pyproject.toml             # Python package metadata and `netprobe` console script
 ├── requirements.txt           # Runtime dependency list
 ├── netprobe/
@@ -112,6 +112,7 @@ NetProbe/
 │   ├── os_fingerprint.py      # Dual-probe OS detection using ICMP TTL + TCP window size
 │   ├── port_scanner.py        # TCP SYN half-open port scanner
 │   ├── banner_grabber.py      # Phase 4 — service banner & version extraction (stdlib only)
+│   ├── speed_test.py          # Standalone internet speed test (speedtest-cli wrapper)
 │   ├── output.py              # PrettyTable result formatter with MAC vendor lookup
 │   └── ports.py               # Common + extended TCP port/service mappings
 └── __pycache__/               # Generated Python bytecode; should normally remain untracked
@@ -175,6 +176,8 @@ sudo python3 Network_scanner.py --h 192.168.1.0/24
 | `--no-ports` | | `False` | Skip port scan — discovery + OS only |
 | `--banners` | `-b` | `False` | Enable Phase 4: grab service banners from all open ports |
 | `--banner-timeout SEC` | | `4.0` | Per-connection timeout for banner grabs in seconds |
+| `--speed-test` | | `False` | Run an internet speed test and exit (no `--h` needed) |
+| `--speed-server ID` | | auto | Ookla server ID to use; omit to auto-select the fastest server |
 | `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; does not print raw Scapy packet dumps |
 
 ### Examples
@@ -201,11 +204,39 @@ sudo netprobe --h 192.168.1.1 --ports 22 80 443 --banners
 # Increase banner timeout for slow/embedded devices (default 4s)
 sudo netprobe --h 192.168.1.0/24 --banners --banner-timeout 6
 
+# Internet speed test — measures THIS machine's connection, not LAN hosts
+netprobe --speed-test
+
+# Speed test with a specific Ookla server ID
+netprobe --speed-test --speed-server 21541
+
 # Verbose mode — enable structured DEBUG logging for probe events
 sudo netprobe --h 192.168.1.5 --verbose
 
 # Scan multiple targets in one run
 sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
+```
+
+### Sample Speed Test Output
+
+```
+[*] Running Internet Speed Test...
+    Finding best server...  Jio (Mumbai, IN)  ✓
+    Testing download...  87.23 Mbps
+    Testing upload...    21.05 Mbps
+
+  ┌─────────────────────────────────────────────────┐
+  │  NetProbe  ·  Internet Speed Test               │
+  ├─────────────────────────────────────────────────┤
+  │  Server    :  Jio (Mumbai, IN)                  │
+  │  Host      :  speedtest5.jio.com:8080           │
+  │  Distance  :  12.4 km                           │
+  │  Ping      :  18.4 ms                           │
+  │  Download  :  87.23 Mbps  ▓▓▓▓▓░░░░░░░          │
+  │  Upload    :  21.05 Mbps  ▓▓░░░░░░░░░░          │
+  └─────────────────────────────────────────────────┘
+
+[✓] Speed test completed in 14.2s
 ```
 
 ### Current limitations

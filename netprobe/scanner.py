@@ -197,7 +197,7 @@ def main():
 | |\  |  __/ |_|  __/| | |  __/ |_) |  __/
 |_| \_|\___|\___|_|   |_|  \___|_.__/ \___|
 
-  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning  ·  Banner Grabbing
+  ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning  ·  Banner Grabbing  ·  Speed Test
 """
 
     parser = argparse.ArgumentParser(
@@ -234,6 +234,14 @@ def main():
         help=f"Per-connection timeout for banner grabbing in seconds  (default: {BANNER_TIMEOUT})",
     )
     parser.add_argument(
+        "--speed-test", dest="speed_test", action="store_true",
+        help="Run an internet speed test and exit (no target needed)",
+    )
+    parser.add_argument(
+        "--speed-server", dest="speed_server", type=int, default=None, metavar="ID",
+        help="Ookla server ID to use for speed test  (default: auto-select best)",
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging",
     )
@@ -247,7 +255,18 @@ def main():
     if arg.verbose:
         _log.setLevel(logging.DEBUG)
 
-    # ── Input validation ──────────────────────────────────────────────────
+    # ── Speed test mode: run and exit, no --h required ─────────────────────
+    if arg.speed_test:
+        from netprobe.speed_test import run_speed_test
+        run_speed_test(server_id=arg.speed_server)
+        sys.exit(0)
+
+    # ── Normal scan mode: --h required ────────────────────────────────
+    if not arg.hosts:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+    # ── Input validation ────────────────────────────────────────────
     validate_targets(arg.hosts)
     validate_ports(arg.ports)
     validate_threads(arg.threads)

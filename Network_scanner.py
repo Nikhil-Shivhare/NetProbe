@@ -58,6 +58,12 @@ EXAMPLES = """
   Banner grabbing on specific ports only:
     sudo python3 Network_scanner.py --h 192.168.1.0/24 --ports 22 80 443 --banners
 
+  Run an internet speed test (no target needed — tests THIS machine):
+    python3 Network_scanner.py --speed-test
+
+  Speed test using a specific Ookla server:
+    python3 Network_scanner.py --speed-test --speed-server 1234
+
   Enable verbose/debug logging:
     sudo python3 Network_scanner.py --h 192.168.1.1 --verbose
 
@@ -122,19 +128,34 @@ def get_args():
         help=f"Per-connection timeout for banner grabbing in seconds  (default: {BANNER_TIMEOUT})"
     )
     parser.add_argument(
+        "--speed-test", dest="speed_test", action="store_true",
+        help="Run an internet speed test and exit (no target needed)"
+    )
+    parser.add_argument(
+        "--speed-server", dest="speed_server", type=int, default=None, metavar="ID",
+        help="Ookla server ID to use for speed test  (default: auto-select best)"
+    )
+    parser.add_argument(
         "--verbose", "-v", dest="verbose", action="store_true",
         help="Enable timestamped DEBUG logging for every packet"
     )
 
     arg = parser.parse_args()
 
-    if len(sys.argv) == 1:
-        parser.print_help(sys.stderr)
-        sys.exit(1)
-
     if arg.verbose:
         log.setLevel(logging.DEBUG)
         log.debug("Verbose mode enabled")
+
+    # ── Speed test mode: run and exit immediately, no target required ─────
+    if arg.speed_test:
+        from netprobe.speed_test import run_speed_test
+        run_speed_test(server_id=arg.speed_server)
+        sys.exit(0)
+
+    # ── Normal scan mode: --h is required ─────────────────────────────────
+    if not arg.hosts:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
 
     # ── Input validation ──────────────────────────────────────────────────
     validate_targets(arg.hosts)

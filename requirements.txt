@@ -2,3 +2,4 @@ scapy
 prettytable
 mac-vendor-lookup
 tqdm
+speedtest-cli
