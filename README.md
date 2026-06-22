@@ -11,7 +11,7 @@
 <br/>
 
 > **A fast, modular Python network reconnaissance tool.**  
-> Discover live hosts · Fingerprint operating systems · Probe up to 501 common ports · Grab service banners — all in one command.
+> Discover live hosts · Fingerprint operating systems · Scan an extended 501-port list · Grab service banners — all in one command.
 
 </div>
 
@@ -31,6 +31,11 @@
 - [Port Coverage](#-port-coverage)
 - [Technologies](#️-technologies)
 - [Roadmap](#️-roadmap)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Testing](#-testing)
+- [Development Setup](#-development-setup)
+- [Troubleshooting](#-troubleshooting)
 - [Disclaimer](#️-disclaimer)
 
 ---
@@ -60,14 +65,14 @@ OS and port work inside each phase is threaded; phases run sequentially after AR
 | 🧬 **Dual OS Fingerprinting** | ICMP TTL + TCP Window Size — two probes, one verdict with confidence score |
 | 🔎 **Linux vs macOS Detection** | Heuristic TTL + TCP window-size detection; separates Linux/macOS when the signals align, but conflicts are reported with medium confidence |
 | 🔒 **TCP SYN Port Scanner** | Stealthy half-open scan — sends SYN, reads SYN-ACK, resets immediately |
-| 📦 **101 to 501 Ports** | 101 default top ports, or 501 ports with `--all-ports` |
+| 📦 **101 to 501 Ports** | 101 default common ports, or an extended 501-port list with `--all-ports` |
 | 🏷️ **Banner Grabbing** | Optional Phase 4: grab service version strings via `--banners` (SSH, FTP, SMTP, HTTP/S, POP3, IMAP + generic fallback) |
 | ⚡ **Multi-threaded** | Configurable thread pool (`--threads`) for OS detection, port probing, and banner grabbing |
 | 🌐 **Internet Speed Test** | Standalone `--speed-test` mode: measures download/upload Mbps and ping to an Ookla server — independent of LAN scanning |
 | 📊 **Live Progress Bars** | Per-phase `tqdm` bars showing count, elapsed time, and probe rate |
 | 🗂️ **Modular Package** | Clean `netprobe/` package — each concern in its own testable module |
 | 🖥️ **Rich CLI** | Full argparse interface with ASCII banner, usage examples, and `--help` |
-| 📝 **Structured Debug Logging** | Installed CLI `--verbose` enables timestamped structured DEBUG logging; direct wrapper help text is outdated and does not mean raw Scapy packet dumps |
+| 📝 **Structured Debug Logging** | `--verbose` enables timestamped structured DEBUG logging for probe events |
 | 🔁 **Multi-target Support** | Scan multiple IPs and CIDR ranges in a single command |
 | 🛡️ **Graceful Error Recovery** | Skips unreachable targets with a warning — never aborts the full scan |
 | 📦 **pip Installable** | `pip install .` registers a global `netprobe` command via `pyproject.toml` |
@@ -114,7 +119,6 @@ NetProbe/
 │   ├── speed_test.py          # Standalone internet speed test (speedtest-cli wrapper)
 │   ├── output.py              # PrettyTable result formatter with MAC vendor lookup
 │   └── ports.py               # Common + extended TCP port/service mappings
-└── __pycache__/               # Generated Python bytecode; should normally remain untracked
 ```
 
 ---
@@ -134,7 +138,7 @@ pip install .
 After installation, run from anywhere on your system:
 
 ```bash
-sudo netprobe --h 192.168.1.0/24
+sudo netprobe -H 192.168.1.0/24
 ```
 
 ### Option 2 — Run directly without installing
@@ -153,7 +157,7 @@ This runs the wrapper script directly and does not require building or installin
 ## 🚀 Usage
 
 ```
-sudo netprobe --h <target> [options]
+sudo netprobe -H <target> [options]
 ```
 
 ### Direct-run usage
@@ -168,40 +172,42 @@ sudo python3 Network_scanner.py --h 192.168.1.0/24
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--h TARGET [...]` | | *required* | One or more host IPs or CIDR ranges |
+| `-H`/`--host TARGET [...]` | `-H` | *required* | One or more host IPs or CIDR ranges |
 | `--threads N` | `-t` | `10` | Thread count for concurrent tasks |
 | `--ports PORT [...]` | `-p` | 101 common ports | Custom port list to scan |
-| `--all-ports` | | `False` | Scan all 501 top ports |
-| `--no-ports` | | `False` | Skip port scan — discovery + OS only |
+| `--all-ports` | `-A` | `False` | Scan the extended 501-port list |
+| `--no-ports` | `-n` | `False` | Skip port scan — discovery + OS only |
 | `--banners` | `-b` | `False` | Enable Phase 4: grab service banners from all open ports |
 | `--banner-timeout SEC` | | `4.0` | Per-connection timeout for banner grabs in seconds |
-| `--speed-test` | | `False` | Run an internet speed test and exit (no `--h` needed) |
+| `--arp-timeout SEC` | | `1.0` | ARP broadcast wait time in seconds |
+| `-o`/`--output FILE` | | `None` | Save results to a text file |
+| `--speed-test` | `-s` | `False` | Run an internet speed test and exit (no target needed) |
 | `--speed-server ID` | | auto | Ookla server ID to use; omit to auto-select the fastest server |
-| `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging; direct wrapper help text is outdated |
+| `--verbose` | `-v` | `False` | Enable timestamped structured DEBUG logging for probe events |
 
 ### Examples
 
 ```bash
 # Scan an entire subnet (default: 101 ports, 10 threads)
-sudo netprobe --h 192.168.1.0/24
+sudo netprobe -H 192.168.1.0/24
 
 # Scan a single host
-sudo netprobe --h 192.168.1.1
+sudo netprobe -H 192.168.1.1
 
 # Fast mode — ARP discovery + OS fingerprinting only
-sudo netprobe --h 192.168.1.0/24 --no-ports
+sudo netprobe -H 192.168.1.0/24 --no-ports
 
 # Scan with more threads and a custom port list
-sudo netprobe --h 192.168.1.0/24 --threads 30 --ports 22 80 443 3306 5432
+sudo netprobe -H 192.168.1.0/24 --threads 30 --ports 22 80 443 3306 5432
 
 # Banner grabbing — grab service versions from all open ports
-sudo netprobe --h 192.168.1.0/24 --banners
+sudo netprobe -H 192.168.1.0/24 --banners
 
 # Banner grabbing on specific ports only
-sudo netprobe --h 192.168.1.1 --ports 22 80 443 --banners
+sudo netprobe -H 192.168.1.1 --ports 22 80 443 --banners
 
 # Increase banner timeout for slow/embedded devices (default 4s)
-sudo netprobe --h 192.168.1.0/24 --banners --banner-timeout 6
+sudo netprobe -H 192.168.1.0/24 --banners --banner-timeout 6
 
 # Internet speed test — measures THIS machine's connection, not LAN hosts
 netprobe --speed-test
@@ -209,11 +215,11 @@ netprobe --speed-test
 # Speed test with a specific Ookla server ID
 netprobe --speed-test --speed-server 21541
 
-# Verbose mode — enable structured DEBUG logging for probe events (direct wrapper help text is outdated)
-sudo netprobe --h 192.168.1.5 --verbose
+# Verbose mode — enable structured DEBUG logging for probe events
+sudo netprobe -H 192.168.1.5 --verbose
 
 # Scan multiple targets in one run
-sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
+sudo netprobe -H 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 ```
 
 ### Sample Speed Test Output
@@ -246,7 +252,7 @@ sudo netprobe --h 192.168.1.0/24 10.0.0.1 172.16.0.0/24
 - `--banners` requires port scanning to be active; it prints a warning and is skipped when combined with `--no-ports`.
 - Banner grabbing uses a 4.0-second per-connection timeout; firewalled ports may appear as `[timeout]`.
 - `--all-ports` scans the 501 configured ports, not every TCP port from 1–65535.
-- `--verbose` enables structured DEBUG logging for probe events; the direct wrapper help text is outdated, but actual behavior does not enable full raw Scapy packet dumps.
+- `--verbose` enables structured DEBUG logging for probe events.
 
 ---
 
@@ -314,7 +320,7 @@ NetProbe scans **101 ports** across 12 service categories by default (expandable
 | File Transfer | FTP (20/21), SFTP (115), FTPS (989/990), TFTP (69) |
 | Remote Access | SSH (22), Telnet (23), RDP (3389), VNC (5900–5902) |
 | Mail | SMTP (25), POP3 (110), IMAP (143), SMTPS (465) |
-| Web | HTTP (80), HTTPS (443), HTTP-Alt (8080/8443/8888) |
+| Web | HTTP (80), HTTPS (443), HTTP/HTTPS Alt (8080/8443/8888) |
 | DNS & Directory | DNS (53), LDAP (389), Kerberos (88) |
 | Windows / SMB | RPC (135), NetBIOS (137–139), SMB (445) |
 | Databases | MySQL (3306), PostgreSQL (5432), MongoDB (27017), Redis (6379), Elasticsearch (9200) |
@@ -324,7 +330,7 @@ NetProbe scans **101 ports** across 12 service categories by default (expandable
 | Security | OpenVPN (1194), PPTP (1723), IKE (500), SOCKS (1080) |
 | Misc | NTP (123), IRC (194/6667), Git (9418), Memcached (11211) |
 
-> Custom ports can override the default list with `--ports 22 80 443 ...` or use `--all-ports` to scan the top 501 ports.
+> Custom ports can override the default list with `--ports 22 80 443 ...` or use `--all-ports` to scan the extended 501-port list.
 
 ---
 
@@ -362,6 +368,58 @@ NetProbe scans **101 ports** across 12 service categories by default (expandable
 - [ ] Scan summary block (total hosts, ports, time)
 - [ ] UDP service scan (`--udp`)
 - [ ] Rate limiting / stealth mode (`--rate`, `--stealth`)
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! To keep the project maintainable:
+
+1. Fork the repository and create a feature branch from `main`.
+2. Follow the existing code style and module conventions.
+3. Add tests for any new functionality.
+4. Open a pull request with a clear description of the change and any related issues.
+
+Please report bugs or feature requests via [GitHub Issues](https://github.com/Nikhil-Shivhare/NetProbe/issues).
+
+---
+
+## 📄 License
+
+This project is released under the [MIT License](LICENSE).
+
+---
+
+## 🧪 Testing
+
+```bash
+pip install -r requirements.txt
+python3 -m pytest tests/
+```
+
+---
+
+## 🛠️ Development Setup
+
+```bash
+git clone https://github.com/Nikhil-Shivhare/NetProbe.git
+cd NetProbe
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+---
+
+## 🔧 Troubleshooting
+
+| Symptom | Solution |
+|---|---|
+| `PermissionError` / `OSError` on raw sockets | Run with `sudo`. Scapy requires root for ARP, ICMP, and TCP SYN probes. |
+| `ImportError: No module named 'speedtest_cli'` | Install the optional dependency: `pip install speedtest-cli` |
+| `SSL error` during banner grabbing | Some services use legacy TLS. NetProbe uses a permissive SSL context for HTTPS, but firewalls may still block probes. Try increasing `--banner-timeout`. |
+| `No hosts are up` | Ensure you are on the same broadcast domain. ARP does not traverse routers. Use a CIDR range that matches your local subnet. |
+| `Server not found` during `--speed-test` | The Ookla server ID may be invalid or offline. Omit `--speed-server` to auto-select the fastest server. |
 
 ---
 
