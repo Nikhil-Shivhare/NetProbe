@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Dict, Optional
 from prettytable import PrettyTable
 from mac_vendor_lookup import MacLookup
@@ -45,6 +46,7 @@ def print_results(
     port_info: dict,
     skip_ports: bool = False,
     banner_info: Optional[Dict] = None,
+    output_file: Optional[str] = None,
 ) -> None:
     """Print a formatted PrettyTable of scan results.
 
@@ -55,6 +57,8 @@ def print_results(
         skip_ports:  bool  whether to hide the OPEN PORTS column
         banner_info: dict  { ip: { "22/SSH": BannerResult, ... } } or None.
                      When not None a BANNERS column is appended to the table.
+        output_file: optional path to a file where the table will also be
+                     written (UTF-8, appended so multiple targets accumulate).
     """
     show_banners = banner_info is not None and not skip_ports
 
@@ -88,4 +92,12 @@ def print_results(
         table.add_row(row)
 
     print(table)
+
+    if output_file:
+        # Append so results from multiple targets land in the same file.
+        mode = "a" if os.path.exists(output_file) else "w"
+        with open(output_file, mode, encoding="utf-8") as fh:
+            fh.write(table.get_string())
+            fh.write("\n")
+        print(f"[✓] Results saved → {output_file}")
 

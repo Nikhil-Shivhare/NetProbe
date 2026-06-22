@@ -29,11 +29,15 @@ class NetworkScanner:
         all_ports: bool = False,
         grab_banners: bool = False,
         banner_timeout: float = BANNER_TIMEOUT,
+        arp_timeout: float = 1.0,
+        output_file: str = None,
     ):
         self.threads        = threads
         self.skip_ports     = skip_ports
         self.grab_banners   = grab_banners and not skip_ports
         self.banner_timeout = banner_timeout
+        self.arp_timeout    = arp_timeout
+        self.output_file    = output_file
 
         if self.grab_banners != grab_banners and grab_banners:
             print("[!] Warning: --banners ignored because --no-ports was also set.")
@@ -71,6 +75,7 @@ class NetworkScanner:
                 self.port_info,
                 self.skip_ports,
                 banner_info=self.banner_info if self.grab_banners else None,
+                output_file=self.output_file,
             )
 
     # ─── ARP Discovery ────────────────────────────────────────────────────────
@@ -83,7 +88,7 @@ class NetworkScanner:
 
     def _send_packet(self):
         log.debug("Sending ARP broadcast and waiting for replies...")
-        ans, _ = srp(self.packet, timeout=1, verbose=False)
+        ans, _ = srp(self.packet, timeout=self.arp_timeout, verbose=False)
         if ans:
             self.ans = ans
             log.debug(f"ARP: received {len(ans)} reply(ies)")
@@ -175,7 +180,7 @@ class NetworkScanner:
                         pbar.update(1)
 
 
-# ─── Console Entry Point ──────────────────────────────────────────────────────
+# ─── Console Entry Point ───────────────────────────────────────────────────────
 
 def main():
     """Entry point for the `netprobe` console command (via pyproject.toml)."""
@@ -200,54 +205,94 @@ def main():
   ARP Discovery  ·  OS Fingerprinting  ·  Port Scanning  ·  Banner Grabbing  ·  Speed Test
 """
 
+    EPILOG = """
+examples:
+  netprobe -H 192.168.1.0/24                  # ARP scan + OS fingerprint + common ports
+  netprobe -H 192.168.1.1 -A                  # scan all 501 known ports
+  netprobe -H 192.168.1.1 -n                  # host discovery only (no port scan)
+  netprobe -H 192.168.1.0/24 -b -o scan.txt  # grab banners and save results to file
+  netprobe -H 10.0.0.0/24 -t 50              # use 50 threads for faster scanning
+  netprobe --speed-test                        # run an internet speed test and exit
+"""
+
     parser = argparse.ArgumentParser(
+        prog="netprobe",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=BANNER,
+        epilog=EPILOG,
     )
-    parser.add_argument(
-        "--h", dest="hosts", nargs="+", metavar="TARGET",
-        help="Host IP or CIDR range(s) to scan  e.g. 192.168.1.0/24",
+
+    # ── Target ──────────────────────────────────────────────────────────────
+    target_grp = parser.add_argument_group("target")
+    target_grp.add_argument(
+        "-H", "--host", dest="hosts", nargs="+", metavar="TARGET",
+        help="IP address or CIDR range(s) to scan  (e.g. 192.168.1.0/24)",
     )
-    parser.add_argument(
-        "--threads", "-t", dest="threads", type=int, default=10, metavar="N",
-        help="Thread count for concurrent tasks  (default: 10)",
+
+    # ── Scan options ───────────────────────────────────────────────────────
+    scan_grp = parser.add_argument_group("scan options")
+    scan_grp.add_argument(
+        "-t", "--threads", dest="threads", type=int, default=10, metavar="N",
+        help="Threads for concurrent scanning  (default: 10, max: 500)",
     )
-    parser.add_argument(
-        "--ports", "-p", dest="ports", nargs="+", type=int, metavar="PORT",
-        help="Custom port list  e.g. --ports 22 80 443",
+    scan_grp.add_argument(
+        "-p", "--ports", dest="ports", nargs="+", type=int, metavar="PORT",
+        help="Custom port list  e.g. -p 22 80 443",
     )
-    parser.add_argument(
-        "--no-ports", dest="no_ports", action="store_true",
-        help="Skip port scanning — host + OS only",
+    scan_grp.add_argument(
+        "-n", "--no-ports", dest="no_ports", action="store_true",
+        help="Skip port scanning — return hosts and OS only",
     )
-    parser.add_argument(
-        "--all-ports", dest="all_ports", action="store_true",
-        help="Scan all 501 ports (default is 101 common ports)",
+    scan_grp.add_argument(
+        "-A", "--all-ports", dest="all_ports", action="store_true",
+        help="Scan all 501 known ports instead of the default 101 common ports",
     )
-    parser.add_argument(
-        "--banners", "-b", dest="banners", action="store_true",
-        help="Enable Phase 4: grab service banners from open ports (requires port scan)",
+    scan_grp.add_argument(
+        "-b", "--banners", dest="banners", action="store_true",
+        help="Grab service banners from open ports (shows software versions)",
     )
-    parser.add_argument(
+    scan_grp.add_argument(
         "--banner-timeout", dest="banner_timeout", type=float,
         default=BANNER_TIMEOUT, metavar="SEC",
         help=f"Per-connection timeout for banner grabbing in seconds  (default: {BANNER_TIMEOUT})",
     )
-    parser.add_argument(
-        "--speed-test", dest="speed_test", action="store_true",
-        help="Run an internet speed test and exit (no target needed)",
-    )
-    parser.add_argument(
-        "--speed-server", dest="speed_server", type=int, default=None, metavar="ID",
-        help="Ookla server ID to use for speed test  (default: auto-select best)",
-    )
-    parser.add_argument(
-        "--verbose", "-v", dest="verbose", action="store_true",
-        help="Enable timestamped DEBUG logging",
+    scan_grp.add_argument(
+        "--arp-timeout", dest="arp_timeout", type=float, default=1.0, metavar="SEC",
+        help="ARP broadcast wait time in seconds  (default: 1.0; increase on slow networks)",
     )
 
+    # ── Output options ────────────────────────────────────────────────────
+    out_grp = parser.add_argument_group("output options")
+    out_grp.add_argument(
+        "-o", "--output", dest="output_file", metavar="FILE",
+        help="Save scan results to a text file in addition to the terminal",
+    )
+    out_grp.add_argument(
+        "-v", "--verbose", dest="verbose", action="store_true",
+        help="Enable timestamped DEBUG logging",
+    )
+    out_grp.add_argument(
+        "--version", action="version", version="%(prog)s v2.0.0",
+        help="Show version and exit",
+    )
+
+    # ── Speed test options ────────────────────────────────────────────────
+    speed_grp = parser.add_argument_group("speed test  (no target needed)")
+    speed_grp.add_argument(
+        "-s", "--speed-test", dest="speed_test", action="store_true",
+        help="Run an internet speed test and exit",
+    )
+    speed_grp.add_argument(
+        "--speed-server", dest="speed_server", type=int, default=None, metavar="ID",
+        help="Ookla server ID to use  (default: auto-select fastest)",
+    )
+
+    # ── No-args friendly hint ──────────────────────────────────────────────
     if len(sys.argv) == 1:
-        parser.print_help(sys.stderr)
+        print(BANNER)
+        print("[!] No arguments provided.")
+        print("    →  Use -H <IP/CIDR> to scan a network.   Example:  netprobe -H 192.168.1.0/24")
+        print("    →  Run  netprobe --help  to see all options.")
         sys.exit(1)
 
     arg = parser.parse_args()
@@ -255,18 +300,20 @@ def main():
     if arg.verbose:
         _log.setLevel(logging.DEBUG)
 
-    # ── Speed test mode: run and exit, no --h required ─────────────────────
+    # ── Speed test mode: run and exit, no --host required ──────────────────
     if arg.speed_test:
         from netprobe.speed_test import run_speed_test
         run_speed_test(server_id=arg.speed_server)
         sys.exit(0)
 
-    # ── Normal scan mode: --h required ────────────────────────────────
+    # ── Normal scan mode: --host required ──────────────────────────────
     if not arg.hosts:
-        parser.print_help(sys.stderr)
+        print("[!] No target specified.")
+        print("    →  Use -H <IP/CIDR> to set a scan target.  Example:  netprobe -H 192.168.1.0/24")
+        print("    →  Run  netprobe --help  to see all options.")
         sys.exit(1)
 
-    # ── Input validation ────────────────────────────────────────────
+    # ── Input validation ──────────────────────────────────────────────
     validate_targets(arg.hosts)
     validate_ports(arg.ports)
     validate_threads(arg.threads)
@@ -279,4 +326,6 @@ def main():
         all_ports=arg.all_ports,
         grab_banners=arg.banners,
         banner_timeout=arg.banner_timeout,
+        arp_timeout=arg.arp_timeout,
+        output_file=arg.output_file,
     )
